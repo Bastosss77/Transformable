@@ -1,0 +1,6 @@
+.gradle
+.idea
+.DS_Store
+gradle
+build
+Transformable-Processor/build
