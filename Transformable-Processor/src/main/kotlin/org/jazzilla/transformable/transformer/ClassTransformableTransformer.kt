@@ -1,9 +1,7 @@
 package org.jazzilla.transformable.transformer
 
-import com.google.devtools.ksp.getConstructors
 import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.symbol.KSClassDeclaration
-import com.google.devtools.ksp.symbol.Modifier
 import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ksp.KotlinPoetKspPreview
 import com.squareup.kotlinpoet.ksp.toClassName
@@ -25,13 +23,12 @@ Returns :
     }
  */
 
-class ClassTransformer(private val origin: KSClassDeclaration,
-                       private val target: KSClassDeclaration,
-                       private val logger: KSPLogger? = null) : Transformer<FileSpec.Builder> {
+internal class ClassTransformableTransformer(private val origin: KSClassDeclaration,
+                                    private val target: KSClassDeclaration,
+                                    logger: KSPLogger? = null) : TransformableTransformer<FileSpec.Builder> {
     private val transformFunExtensionName = "transform"
-    private val undoFunExtensionName = "undo"
 
-    private val constructorTransformer = ConstructorTransformer(origin, target, logger)
+    private val constructorTransformer = ConstructorTransformableTransformer(origin, target, logger)
 
     @OptIn(KotlinPoetKspPreview::class)
     override fun createTransformer(builder: FileSpec.Builder) {
@@ -41,15 +38,5 @@ class ClassTransformer(private val origin: KSClassDeclaration,
 
         constructorTransformer.createTransformer(transformExtensionFunSpecBuilder)
         builder.addFunction(transformExtensionFunSpecBuilder.build())
-    }
-
-    @OptIn(KotlinPoetKspPreview::class)
-    override fun undoTransformer(builder: FileSpec.Builder) {
-        val undoExtensionFunSpecBuilder = FunSpec.builder(undoFunExtensionName)
-            .receiver(target.toClassName())
-            .returns(origin.toClassName())
-
-        constructorTransformer.undoTransformer(undoExtensionFunSpecBuilder)
-        builder.addFunction(undoExtensionFunSpecBuilder.build())
     }
 }

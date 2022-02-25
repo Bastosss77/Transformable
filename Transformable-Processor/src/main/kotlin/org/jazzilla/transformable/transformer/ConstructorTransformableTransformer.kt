@@ -1,7 +1,6 @@
 package org.jazzilla.transformable.transformer
 
 import com.google.devtools.ksp.getConstructors
-import com.google.devtools.ksp.isConstructor
 import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
@@ -22,43 +21,35 @@ Returns :
     Test(a = this.a)
  */
 
-class ConstructorTransformer(private val origin: KSClassDeclaration,
-                             private val target: KSClassDeclaration,
-                             private val logger: KSPLogger? = null) : Transformer<FunSpec.Builder> {
+internal class ConstructorTransformableTransformer(private val origin: KSClassDeclaration,
+                                          private val target: KSClassDeclaration,
+                                          private val logger: KSPLogger? = null) : TransformableTransformer<FunSpec.Builder> {
 
     @OptIn(KotlinPoetKspPreview::class)
     override fun createTransformer(builder: FunSpec.Builder) {
-       createConstructCall(origin, target, builder)
-    }
+        val originPrimaryConstructor = origin.primaryConstructor ?: origin.getConstructors().firstOrNull()
+        val targetPrimaryConstructor = target.primaryConstructor ?: target.getConstructors().firstOrNull()
 
-    override fun undoTransformer(builder: FunSpec.Builder) {
-        createConstructCall(target, origin, builder)
-    }
+        requirePublicConstruct(originPrimaryConstructor) { "Constructor must not be null and public in class ${origin.toClassName().simpleName}" }
+        requirePublicConstruct(targetPrimaryConstructor) { "Constructor must not be null and public in class ${target.toClassName().simpleName}" }
 
-    @OptIn(KotlinPoetKspPreview::class)
-    private fun createConstructCall(from: KSClassDeclaration, to: KSClassDeclaration, builder: FunSpec.Builder) {
-        val fromPrimaryConstructor = from.primaryConstructor ?: from.getConstructors().firstOrNull()
-        val toPrimaryConstructor = to.primaryConstructor ?: to.getConstructors().firstOrNull()
-
-        requirePublicConstruct(fromPrimaryConstructor) { "Constructor must not be null and public in class ${from.toClassName().simpleName}" }
-        requirePublicConstruct(toPrimaryConstructor) { "Constructor must not be null and public in class ${to.toClassName().simpleName}" }
-
-        val fromProperties = from.getAllProperties()
+        val originProperties = origin.getAllProperties()
         var targetConstructorCallStatement = "return %T("
 
-        toPrimaryConstructor.parameters.forEach { parameter ->
+        targetPrimaryConstructor.parameters.forEach { parameter ->
             val name = parameter.name?.getShortName()
             requireNotNull(name)
 
-            if(fromProperties.count { it.simpleName.getShortName() == name } == 0) {
+            if (originProperties.count { it.simpleName.getShortName() == name } == 0) {
                 throw IllegalStateException()
             }
 
             targetConstructorCallStatement += "$name = this.$name"
         }
+
         targetConstructorCallStatement += ")"
 
-        builder.addStatement(targetConstructorCallStatement, to.toClassName())
+        builder.addStatement(targetConstructorCallStatement, target.toClassName())
     }
 
     @OptIn(ExperimentalContracts::class)

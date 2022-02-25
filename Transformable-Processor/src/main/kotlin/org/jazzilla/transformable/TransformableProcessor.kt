@@ -3,13 +3,14 @@ package org.jazzilla.transformable
 import com.google.devtools.ksp.processing.*
 import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSClassDeclaration
+import com.google.devtools.ksp.validate
 import com.squareup.kotlinpoet.FileSpec
 import com.squareup.kotlinpoet.ksp.KotlinPoetKspPreview
 import com.squareup.kotlinpoet.ksp.writeTo
 import org.jazzilla.transformable.annotations.Transformable
 import org.jazzilla.transformable.visitors.TransformableAnnotationVisitor
 
-class TransformableProcessor(private val generator: CodeGenerator, private val logger: KSPLogger) : SymbolProcessor {
+internal class TransformableProcessor(private val generator: CodeGenerator, private val logger: KSPLogger) : SymbolProcessor {
     private val transformableQualifiedName = Transformable::class.qualifiedName
     private val transformerPackage = "org.jazzilla.transformable"
     private val transformerFileNameSuffix = "Transformer"
@@ -23,7 +24,7 @@ class TransformableProcessor(private val generator: CodeGenerator, private val l
         val classes = resolver.getSymbolsWithAnnotation(qualifiedName).filterIsInstance<KSClassDeclaration>()
         logger.info("Found ${classes.count()} files with ${Transformable::class.simpleName} annotation")
 
-        classes.forEach { classDeclaration ->
+        classes.filter { it.validate() }.forEach { classDeclaration ->
             val className = classDeclaration.simpleName.asString()
             val fileSpecBuilder = FileSpec.builder(transformerPackage, "$className$transformerFileNameSuffix")
             val visitor = TransformableAnnotationVisitor(logger, fileSpecBuilder)
@@ -32,11 +33,11 @@ class TransformableProcessor(private val generator: CodeGenerator, private val l
             fileSpecBuilder.build().writeTo(generator, Dependencies(false))
         }
 
-        return emptyList()
+        return classes.filterNot { it.validate() }.toList()
     }
 }
 
-class TransformableProcessorProvider : SymbolProcessorProvider {
+internal class TransformableProcessorProvider : SymbolProcessorProvider {
     override fun create(environment: SymbolProcessorEnvironment): SymbolProcessor {
         return TransformableProcessor(environment.codeGenerator, environment.logger)
     }
